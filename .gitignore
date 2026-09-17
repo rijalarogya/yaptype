@@ -1,0 +1,20 @@
+# Cadence
+.DS_Store
+.build/
+build/
+DerivedData/
+*.xcuserstate
+xcuserdata/
+*.moved-aside
+*.hmap
+*.ipa
+*.dSYM.zip
+*.dSYM
+.swiftpm/xcode/package.xcworkspace/contents.xcworkspacedata
+.netrc
+*.mlmodelc
+*.mlmodel
+*.mlpackage
+.env
+.env.*
+Cadence/Resources/Generated/
