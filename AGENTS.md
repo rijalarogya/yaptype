@@ -1,6 +1,6 @@
 # Agent notes
 
-Cadence is a native SwiftUI + AppKit menu-bar dictation app for Apple Silicon Macs.
+Yaptype is a native SwiftUI + AppKit menu-bar dictation app for Apple Silicon Macs.
 
 ## Do
 
@@ -19,7 +19,7 @@ Cadence is a native SwiftUI + AppKit menu-bar dictation app for Apple Silicon Ma
 ## Build
 
 ```bash
-xcodebuild -scheme Cadence -configuration Debug \
+xcodebuild -scheme Yaptype -configuration Debug \
   -destination 'generic/platform=macOS' \
   -derivedDataPath build \
   CODE_SIGN_IDENTITY="-" \

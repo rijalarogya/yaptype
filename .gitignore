@@ -1,4 +1,4 @@
-# Cadence
+# Yaptype
 .DS_Store
 .build/
 build/
@@ -17,4 +17,5 @@ xcuserdata/
 *.mlpackage
 .env
 .env.*
-Cadence/Resources/Generated/
+Yaptype/Resources/Generated/
+dist/

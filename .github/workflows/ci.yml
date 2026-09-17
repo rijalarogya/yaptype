@@ -15,7 +15,7 @@ jobs:
       - name: Build
         run: |
           xcodebuild \
-            -scheme Cadence \
+            -scheme Yaptype \
             -configuration Debug \
             -destination 'generic/platform=macOS' \
             -derivedDataPath build \
@@ -24,7 +24,7 @@ jobs:
       - name: Test
         run: |
           xcodebuild \
-            -scheme Cadence \
+            -scheme Yaptype \
             -configuration Debug \
             -destination 'platform=macOS,arch=arm64' \
             -derivedDataPath build \

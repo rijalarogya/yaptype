@@ -1,18 +1,18 @@
-# Contributing to Cadence
+# Contributing to Yaptype
 
-Cadence is a native Swift macOS app. Please keep the dictation path local, fast, and free of cloud STT.
+Yaptype is a native Swift macOS app. Please keep the dictation path local, fast, and free of cloud STT.
 
 ## Setup
 
 - Apple Silicon Mac
 - Xcode 16+
-- `open Cadence.xcodeproj`
+- `open Yaptype.xcodeproj`
 
 Do not commit downloaded Whisper or MLX weights, `DerivedData`, or `xcuserdata`.
 
 ## Architecture
 
-The hold-to-talk loop lives in `Cadence/Services/DictationPipeline.swift`:
+The hold-to-talk loop lives in `Yaptype/Services/DictationPipeline.swift`:
 
 1. `HotkeyService` starts and stops capture
 2. `AudioCaptureService` records 16 kHz mono PCM

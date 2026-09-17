@@ -5,21 +5,25 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
 	<key>CFBundleDisplayName</key>
-	<string>Cadence</string>
+	<string>Yaptype</string>
 	<key>CFBundleExecutable</key>
-	<string>Cadence</string>
+	<string>Yaptype</string>
+	<key>CFBundleIconFile</key>
+	<string>AppIcon</string>
+	<key>CFBundleIconName</key>
+	<string>AppIcon</string>
 	<key>CFBundleIdentifier</key>
-	<string>app.cadence.macos</string>
+	<string>app.yaptype.macos</string>
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
-	<string>Cadence</string>
+	<string>Yaptype</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
 	<string>0.1.0</string>
 	<key>CFBundleVersion</key>
-	<string>1</string>
+	<string>2</string>
 	<key>LSApplicationCategoryType</key>
 	<string>public.app-category.productivity</string>
 	<key>LSMinimumSystemVersion</key>
@@ -28,8 +32,10 @@
 	<true/>
 	<key>NSHighResolutionCapable</key>
 	<true/>
+	<key>NSAppleEventsUsageDescription</key>
+	<string>Yaptype activates the app you were typing in so it can insert dictation at the cursor.</string>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>Cadence records your microphone only while you hold the dictation hotkey, and transcribes audio on this Mac.</string>
+	<string>Yaptype records your microphone only while you hold the dictation hotkey, and transcribes audio on this Mac.</string>
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
 </dict>

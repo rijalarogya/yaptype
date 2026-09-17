@@ -15,7 +15,7 @@ No account. No cloud STT. Apple Silicon only.
 ## Install
 
 1. Download the latest `.dmg` from [Releases](../../releases) when published, or build from source below.
-2. Drag **Yaptype** into `/Applications`. Launch it from Applications, not from the disk image. The current Xcode target is still named `Cadence`.
+2. Drag **Yaptype** into `/Applications`. Launch it from Applications, not from the disk image.
 3. Grant **Microphone** and **Accessibility**.
 4. Download a Whisper model (Large v3 Turbo is the recommended daily driver).
 
@@ -23,7 +23,7 @@ Hold **Right Option** to dictate. Release to insert text. Press **Esc** to cance
 
 ## Models
 
-Whisper models are downloaded from [argmaxinc/whisperkit-coreml](https://huggingface.co/argmaxinc/whisperkit-coreml) into `~/Library/Application Support/Cadence/Models/`.
+Whisper models are downloaded from [argmaxinc/whisperkit-coreml](https://huggingface.co/argmaxinc/whisperkit-coreml) into `~/Library/Application Support/Yaptype/Models/`.
 
 | Model | Best for |
 | --- | --- |
@@ -43,20 +43,20 @@ Rewrite:
 ```bash
 git clone https://github.com/rijalarogya/yaptype.git
 cd yaptype
-open Cadence.xcodeproj
+open Yaptype.xcodeproj
 ```
 
 Or from the command line:
 
 ```bash
-xcodebuild -scheme Cadence -configuration Release \
+xcodebuild -scheme Yaptype -configuration Release \
   -destination 'generic/platform=macOS' \
   -derivedDataPath build \
   CODE_SIGN_IDENTITY="-" \
   build
 ```
 
-The app lands at `build/Build/Products/Release/Cadence.app`. Copy it to `/Applications` so Accessibility permissions stick.
+The app lands at `build/Build/Products/Release/Yaptype.app`. Copy it to `/Applications` so Accessibility permissions stick.
 
 Package a disk image:
 
