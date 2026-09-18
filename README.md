@@ -62,11 +62,13 @@ xcodebuild -scheme Yaptype -configuration Release \
 
 The app lands at `build/Build/Products/Release/Yaptype.app`. Copy it to `/Applications` so Accessibility permissions stick.
 
-Package a disk image:
+Package a disk image on this Mac (not on GitHub):
 
 ```bash
 ./scripts/package-dmg.sh
 ```
+
+GitHub only hosts the source and the DMG. Builds stay on your machine so they do not use GitHub Actions minutes.
 
 ## Permissions
 

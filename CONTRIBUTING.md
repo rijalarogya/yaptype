@@ -29,4 +29,4 @@ The hold-to-talk loop lives in `Yaptype/Services/DictationPipeline.swift`:
 
 ## Releases
 
-`./scripts/package-dmg.sh` builds a Release app and wraps it in a disk image. Notarization is optional and requires an Apple Developer ID.
+`./scripts/package-dmg.sh` builds a Release app on your Mac and wraps it in a disk image. Upload that DMG to a GitHub Release. Do not add GitHub Actions; cloud Mac runners burn the free minutes quota. Notarization is optional and requires an Apple Developer ID.

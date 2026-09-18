@@ -15,6 +15,7 @@ Yaptype is a native SwiftUI + AppKit dictation app for Apple Silicon Macs. It st
 - Sandbox the app.
 - Name the product Wispr or Whisper Flow.
 - Commit `.mlmodelc` files or Hugging Face snapshots.
+- Add GitHub Actions or any GitHub-hosted runners. Build and package only on this Mac.
 
 ## Build
 
