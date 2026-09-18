@@ -1,27 +1,29 @@
 # Yaptype
 
+**[Download Yaptype for Mac](https://github.com/rijalarogya/yaptype/releases/latest/download/Yaptype.dmg)** · Apple Silicon · macOS 14+
+
 Yaptype is a free, open-source, Mac-only dictation app. Hold a hotkey, speak, release, and polished text is pasted wherever your cursor is. The main window also includes **Note Taker** for longer recordings and **File Transcription** for audio or video files.
 
 It is a local alternative to cloud dictation tools such as Wispr Flow. Audio is transcribed on your Mac with downloadable [OpenAI Whisper](https://github.com/openai/whisper) models via [WhisperKit](https://github.com/argmaxinc/argmax-oss-swift). Optional rewrite uses Apple Intelligence when available, otherwise a downloadable Qwen model, otherwise a small rule-based cleaner.
 
 No account. No cloud STT. Apple Silicon only.
 
+## Install
+
+1. [Download the DMG](https://github.com/rijalarogya/yaptype/releases/latest/download/Yaptype.dmg).
+2. Open it and drag **Yaptype** into **Applications**. Launch it from Applications, not from the disk image.
+3. Grant **Microphone** and **Accessibility**.
+4. Click **Download Large v3 Turbo**. One click. About 1.6 GB, stored only on this Mac.
+
+Hold **Right Option** to dictate. Release to insert text. Press **Esc** to cancel.
+
+Open the main window for **Note Taker** (live meeting transcripts and notes) and **File Transcription** (drop MP3, WAV, M4A, MP4, or MOV). Everything stays on this Mac.
+
 ## Requirements
 
 - Apple Silicon Mac (M1 or later)
 - macOS 14 Sonoma or later
 - Xcode 16 or later to build from source
-
-## Install
-
-1. Download the latest `.dmg` from [Releases](../../releases) when published, or build from source below.
-2. Drag **Yaptype** into `/Applications`. Launch it from Applications, not from the disk image.
-3. Grant **Microphone** and **Accessibility**.
-4. Download a Whisper model (Large v3 Turbo is the recommended daily driver).
-
-Hold **Right Option** to dictate. Release to insert text. Press **Esc** to cancel.
-
-Open the main window for **Note Taker** (live meeting transcripts and notes) and **File Transcription** (drop MP3, WAV, M4A, MP4, or MOV). Everything stays on this Mac.
 
 ## Models
 

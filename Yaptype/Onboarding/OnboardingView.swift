@@ -104,11 +104,20 @@ struct OnboardingView: View {
                 Text(errorMessage)
                     .font(.caption)
                     .foregroundStyle(.orange)
+            } else if let error = models.lastError, !installed {
+                Text(error)
+                    .font(.caption)
+                    .foregroundStyle(.orange)
             }
-            Button(installed ? "Downloaded" : "Download \(spec.title)") {
-                Task { await downloadRecommended() }
+            if !installed {
+                OrangeButton(
+                    title: downloading ? "Downloading…" : "Download Large v3 Turbo",
+                    symbol: "arrow.down.circle"
+                ) {
+                    Task { await downloadRecommended() }
+                }
+                .disabled(downloading || models.downloadingID != nil)
             }
-            .disabled(installed || downloading)
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)

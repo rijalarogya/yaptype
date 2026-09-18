@@ -1,0 +1,37 @@
+name: release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  dmg:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Package DMG
+        run: ./scripts/package-dmg.sh
+      - name: Upload to GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          VERSION="${GITHUB_REF_NAME#v}"
+          cp dist/Yaptype-0.1.0.dmg "dist/Yaptype-${VERSION}.dmg"
+          cp dist/Yaptype-0.1.0.dmg dist/Yaptype.dmg
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" \
+              "dist/Yaptype.dmg#Yaptype.dmg" \
+              "dist/Yaptype-${VERSION}.dmg#Yaptype-${VERSION}.dmg" \
+              --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" \
+              --title "Yaptype ${VERSION}" \
+              --generate-notes \
+              "dist/Yaptype.dmg#Yaptype.dmg" \
+              "dist/Yaptype-${VERSION}.dmg#Yaptype-${VERSION}.dmg"
+          fi

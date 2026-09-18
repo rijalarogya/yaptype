@@ -62,9 +62,24 @@ struct HomeView: View {
                             .disabled(pipeline.phase.isBusy)
                         }
                         if models.installedIDs.isEmpty {
-                            Text("Download a Whisper model in Models, then switch it here.")
-                                .font(.caption)
-                                .foregroundStyle(YaptypeTheme.muted)
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("Download Large v3 Turbo once, then Start Dictating works.")
+                                    .font(.caption)
+                                    .foregroundStyle(YaptypeTheme.muted)
+                                if models.downloadingID == WhisperModelSpec.recommended.id {
+                                    ProgressView(value: models.downloadProgress)
+                                        .frame(width: 220)
+                                } else {
+                                    OrangeButton(title: "Download Large v3 Turbo", symbol: "arrow.down.circle") {
+                                        Task { await downloadRecommended() }
+                                    }
+                                }
+                                if let error = models.lastError {
+                                    Text(error)
+                                        .font(.caption)
+                                        .foregroundStyle(.orange)
+                                }
+                            }
                         }
 
                         Divider().overlay(YaptypeTheme.line)
@@ -289,6 +304,19 @@ struct HomeView: View {
         Task {
             await transcription.prewarm(modelID: id)
             pipeline.refreshStatus()
+        }
+    }
+
+    private func downloadRecommended() async {
+        let spec = WhisperModelSpec.recommended
+        do {
+            try await models.download(spec)
+            settings.objectWillChange.send()
+            settings.selectedModelID = spec.id
+            await transcription.prewarm(modelID: spec.id)
+            pipeline.refreshStatus()
+        } catch {
+            models.lastError = error.localizedDescription
         }
     }
 

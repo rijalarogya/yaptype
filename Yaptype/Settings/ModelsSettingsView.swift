@@ -14,13 +14,23 @@ struct ModelsSettingsView: View {
 
                 if models.installedIDs.isEmpty {
                     YaptypeCard {
-                        VStack(alignment: .leading, spacing: 6) {
+                        VStack(alignment: .leading, spacing: 10) {
                             Text("No models downloaded")
                                 .font(.system(size: 16))
                                 .foregroundStyle(YaptypeTheme.ink)
-                            Text("Nothing is installed yet. Download a Whisper model below to start dictating.")
+                            Text("One click downloads Large v3 Turbo, about \(WhisperModelSpec.recommended.sizeLabel). It stays on this Mac.")
                                 .font(.system(size: 13))
                                 .foregroundStyle(YaptypeTheme.muted)
+                            if models.downloadingID == WhisperModelSpec.recommended.id {
+                                ProgressView(value: models.downloadProgress)
+                                Text("Downloading… \(Int(models.downloadProgress * 100))%")
+                                    .font(.caption)
+                                    .foregroundStyle(YaptypeTheme.muted)
+                            } else {
+                                OrangeButton(title: "Download Large v3 Turbo", symbol: "arrow.down.circle") {
+                                    Task { await downloadRecommended() }
+                                }
+                            }
                         }
                     }
                 }
@@ -194,5 +204,18 @@ struct ModelsSettingsView: View {
             }
         }
         .padding(16)
+    }
+
+    private func downloadRecommended() async {
+        let spec = WhisperModelSpec.recommended
+        do {
+            try await models.download(spec)
+            settings.selectedModelID = spec.id
+            await transcription.prewarm(modelID: spec.id)
+            pipeline.ensureCompatibleModel()
+            pipeline.refreshStatus()
+        } catch {
+            models.lastError = error.localizedDescription
+        }
     }
 }
