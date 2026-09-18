@@ -231,9 +231,10 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = Yaptype;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
-				INFOPLIST_KEY_LSUIElement = YES;
+				INFOPLIST_KEY_LSUIElement = NO;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "Copyright © 2026 Yaptype contributors. MIT License.";
-				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Yaptype records your microphone only while you hold the dictation hotkey, and transcribes audio on this Mac.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Yaptype records your microphone while you dictate or use Note Taker, and transcribes audio on this Mac.";
+				INFOPLIST_KEY_NSAppleEventsUsageDescription = "Yaptype activates the app you were typing in so it can insert dictation at the cursor.";
 				INFOPLIST_KEY_NSPrincipalClass = NSApplication;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -268,9 +269,10 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = Yaptype;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
-				INFOPLIST_KEY_LSUIElement = YES;
+				INFOPLIST_KEY_LSUIElement = NO;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "Copyright © 2026 Yaptype contributors. MIT License.";
-				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Yaptype records your microphone only while you hold the dictation hotkey, and transcribes audio on this Mac.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Yaptype records your microphone while you dictate or use Note Taker, and transcribes audio on this Mac.";
+				INFOPLIST_KEY_NSAppleEventsUsageDescription = "Yaptype activates the app you were typing in so it can insert dictation at the cursor.";
 				INFOPLIST_KEY_NSPrincipalClass = NSApplication;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",

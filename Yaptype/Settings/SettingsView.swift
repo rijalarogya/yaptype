@@ -8,12 +8,12 @@ struct SettingsView: View {
                 .tabItem { Label("General", systemImage: "slider.horizontal.3") }
             ModelsSettingsView()
                 .tabItem { Label("Models", systemImage: "square.stack.3d.up") }
-            HistorySettingsView()
+            HistoryView()
                 .tabItem { Label("History", systemImage: "clock") }
             DiagnosticsView()
                 .tabItem { Label("Diagnostics", systemImage: "speedometer") }
         }
-        .padding(8)
+        .frame(minWidth: 720, minHeight: 520)
     }
 }
 
@@ -24,97 +24,118 @@ struct GeneralSettingsView: View {
     @EnvironmentObject private var rewrite: RewriteService
 
     var body: some View {
-        Form {
-            Section("Dictation") {
-                Picker("Hotkey", selection: $settings.hotkeyRaw) {
-                    ForEach(HotkeyPreset.allCases) { preset in
-                        Text(preset.title).tag(preset.rawValue)
+        ScrollView {
+            VStack(alignment: .leading, spacing: 18) {
+                PageHeader(title: AppPage.general.title, subtitle: AppPage.general.subtitle)
+
+                settingsCard("Dictation", symbol: "mic") {
+                    SettingsRow(title: "Hotkey") {
+                        MacPopupButton(
+                            selection: settings.binding(\.hotkeyRaw),
+                            options: HotkeyPreset.allCases.map { ($0.rawValue, $0.title) }
+                        )
+                        .frame(width: 200, height: 28)
+                    }
+                    .onChange(of: settings.hotkeyRaw) { _, _ in
+                        pipeline.restartHotkey()
+                    }
+                    Divider().overlay(YaptypeTheme.line)
+                    SettingsRow(title: "Language", subtitle: settings.language == .auto
+                                ? "Hears whatever you speak."
+                                : "Pin a language only if short takes misfire.") {
+                        MacPopupButton(
+                            selection: settings.binding(\.languageRaw),
+                            options: TranscriptionLanguage.allCases.map { ($0.rawValue, $0.title) }
+                        )
+                        .frame(width: 200, height: 28)
+                    }
+                    .onChange(of: settings.languageRaw) { _, _ in
+                        pipeline.ensureCompatibleModel()
+                        pipeline.refreshStatus()
                     }
                 }
-                .onChange(of: settings.hotkeyRaw) { _, _ in
-                    pipeline.restartHotkey()
-                }
 
-                Picker("Language", selection: $settings.languageRaw) {
-                    ForEach(TranscriptionLanguage.allCases) { language in
-                        Text(language.title).tag(language.rawValue)
+                settingsCard("Rewrite", symbol: "sparkles") {
+                    SettingsRow(title: "Fix small grammar") {
+                        Toggle("", isOn: $settings.rewriteEnabled).labelsHidden()
+                    }
+                    Divider().overlay(YaptypeTheme.line)
+                    SettingsRow(title: "Prefer Apple Intelligence when available") {
+                        Toggle("", isOn: $settings.preferAppleIntelligence).labelsHidden()
+                    }
+                    Divider().overlay(YaptypeTheme.line)
+                    SettingsRow(title: "Apple Intelligence") {
+                        StatusDot(ok: rewrite.appleIntelligenceAvailable, label: rewrite.appleIntelligenceAvailable ? "Available" : "Not available")
+                    }
+                    Divider().overlay(YaptypeTheme.line)
+                    SettingsRow(title: "Local Qwen model") {
+                        StatusDot(ok: rewrite.mlxReady, label: rewriteStatus)
+                    }
+                    Text("Fixes small grammar. Does not change how you said it.")
+                        .font(.caption)
+                        .foregroundStyle(YaptypeTheme.muted)
+                    if rewrite.mlxLoading {
+                        ProgressView(value: rewrite.mlxProgress)
+                        Text("Downloading… \(Int(rewrite.mlxProgress * 100))%")
+                            .font(.caption)
+                            .foregroundStyle(YaptypeTheme.muted)
+                    }
+                    GhostButton(title: rewrite.mlxReady ? "Reload local rewrite model" : "Download local rewrite model") {
+                        Task { await rewrite.prepareMLX() }
+                    }
+                    .disabled(rewrite.mlxLoading)
+                    if let error = rewrite.lastError {
+                        Text(error).font(.caption).foregroundStyle(.orange)
                     }
                 }
-            }
 
-            Section("Rewrite") {
-                Toggle("Polish dictation into written prose", isOn: $settings.rewriteEnabled)
-                Toggle("Prefer Apple Intelligence when available", isOn: $settings.preferAppleIntelligence)
-                LabeledContent("Apple Intelligence") {
-                    Text(rewrite.appleIntelligenceAvailable ? "Available" : "Not available")
-                        .foregroundStyle(rewrite.appleIntelligenceAvailable ? .green : .secondary)
-                }
-                LabeledContent("Local Qwen model") {
-                    Text(rewriteStatus)
-                        .foregroundStyle(rewrite.mlxReady ? .green : .secondary)
-                }
-                Text("Optional. Dictation still polishes with Apple Intelligence or local rules if Qwen cannot run.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                if rewrite.mlxLoading {
-                    ProgressView(value: rewrite.mlxProgress)
-                    Text("Downloading… \(Int(rewrite.mlxProgress * 100))%")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                Button(rewrite.mlxReady ? "Reload local rewrite model" : "Download local rewrite model") {
-                    Task { await rewrite.prepareMLX() }
-                }
-                .disabled(rewrite.mlxLoading)
-                if let error = rewrite.lastError {
-                    Text(error).font(.caption).foregroundStyle(.orange)
-                }
-            }
-
-            Section("Permissions") {
-                LabeledContent("This copy") {
-                    Text(permissions.runningPath)
-                        .font(.caption)
-                        .textSelection(.enabled)
-                }
-                LabeledContent("Microphone") {
-                    status(permissions.microphoneGranted)
-                }
-                LabeledContent("Accessibility") {
-                    status(permissions.accessibilityGranted)
-                }
-                LabeledContent("Input Monitoring") {
-                    status(permissions.inputMonitoringGranted)
-                }
-                if let hint = permissions.hint {
-                    Text(hint)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .textSelection(.enabled)
-                }
-                HStack {
-                    Button("Microphone settings") { permissions.openMicrophoneSettings() }
-                    Button("Accessibility settings") { permissions.openAccessibilitySettings() }
-                    Button("Input Monitoring") { permissions.openInputMonitoringSettings() }
-                }
-                if !permissions.accessibilityGranted || !permissions.inputMonitoringGranted {
-                    Button("Quit & Reopen Yaptype") {
-                        permissions.relaunch()
+                settingsCard("Permissions", symbol: "checkmark.shield") {
+                    SettingsRow(title: "This copy") {
+                        Text(permissions.runningPath)
+                            .font(.caption)
+                            .foregroundStyle(YaptypeTheme.muted)
+                            .textSelection(.enabled)
+                            .lineLimit(1)
+                    }
+                    Divider().overlay(YaptypeTheme.line)
+                    SettingsRow(title: "Microphone") {
+                        StatusDot(ok: permissions.microphoneGranted, label: permissions.microphoneGranted ? "Granted" : "Missing")
+                    }
+                    Divider().overlay(YaptypeTheme.line)
+                    SettingsRow(title: "Accessibility") {
+                        StatusDot(ok: permissions.accessibilityGranted, label: permissions.accessibilityGranted ? "Granted" : "Missing")
+                    }
+                    Divider().overlay(YaptypeTheme.line)
+                    SettingsRow(title: "Input Monitoring") {
+                        StatusDot(ok: permissions.inputMonitoringGranted, label: permissions.inputMonitoringGranted ? "Granted" : "Missing")
+                    }
+                    HStack {
+                        GhostButton(title: "Microphone settings") { permissions.openMicrophoneSettings() }
+                        GhostButton(title: "Accessibility settings") { permissions.openAccessibilitySettings() }
+                        GhostButton(title: "Input Monitoring") { permissions.openInputMonitoringSettings() }
+                    }
+                    if !permissions.accessibilityGranted || !permissions.inputMonitoringGranted {
+                        OrangeButton(title: "Quit & Reopen Yaptype") {
+                            permissions.relaunch()
+                        }
                     }
                 }
-            }
 
-            Section("System") {
-                Toggle("Open Yaptype at login", isOn: $settings.launchAtLogin)
+                settingsCard("System", symbol: "power") {
+                    SettingsRow(title: "Open Yaptype at login") {
+                        Toggle("", isOn: $settings.launchAtLogin).labelsHidden()
+                    }
                     .onChange(of: settings.launchAtLogin) { _, _ in
                         settings.applyLaunchAtLogin()
                     }
-                Text(pipeline.statusMessage)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    Text(pipeline.statusMessage)
+                        .font(.caption)
+                        .foregroundStyle(YaptypeTheme.muted)
+                }
             }
+            .padding(28)
         }
-        .formStyle(.grouped)
+        .background(YaptypeTheme.canvas)
         .onAppear {
             permissions.refresh()
             rewrite.refreshAvailability()
@@ -127,8 +148,15 @@ struct GeneralSettingsView: View {
         return "Not downloaded"
     }
 
-    private func status(_ granted: Bool) -> some View {
-        Text(granted ? "Granted" : "Missing")
-            .foregroundStyle(granted ? .green : .orange)
+    private func settingsCard<Content: View>(_ title: String, symbol: String, @ViewBuilder content: () -> Content) -> some View {
+        YaptypeCard {
+            VStack(alignment: .leading, spacing: 4) {
+                Label(title, systemImage: symbol)
+                    .font(.system(size: 16))
+                    .foregroundStyle(YaptypeTheme.ink)
+                    .padding(.bottom, 8)
+                content()
+            }
+        }
     }
 }

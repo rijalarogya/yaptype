@@ -8,90 +8,160 @@ struct ModelsSettingsView: View {
     @EnvironmentObject private var rewrite: RewriteService
 
     var body: some View {
-        List {
-            Section("Whisper models") {
-                ForEach(WhisperModelSpec.all) { spec in
-                    modelRow(spec)
+        ScrollView {
+            VStack(alignment: .leading, spacing: 18) {
+                PageHeader(title: AppPage.models.title, subtitle: AppPage.models.subtitle)
+
+                if models.installedIDs.isEmpty {
+                    YaptypeCard {
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("No models downloaded")
+                                .font(.system(size: 16))
+                                .foregroundStyle(YaptypeTheme.ink)
+                            Text("Nothing is installed yet. Download a Whisper model below to start dictating.")
+                                .font(.system(size: 13))
+                                .foregroundStyle(YaptypeTheme.muted)
+                        }
+                    }
                 }
-            }
-            Section("Local rewrite") {
+
                 VStack(alignment: .leading, spacing: 8) {
-                    Text(MLXModelSpec.recommended.title)
-                        .font(.headline)
-                    Text(MLXModelSpec.recommended.subtitle)
+                    Text("Speech recognition")
+                        .font(.system(size: 18))
+                        .foregroundStyle(YaptypeTheme.ink)
+                    Text("Whisper models run locally on this Mac.")
+                        .font(.system(size: 13))
+                        .foregroundStyle(YaptypeTheme.muted)
+                }
+
+                YaptypeCard(padding: 0) {
+                    VStack(spacing: 0) {
+                        ForEach(Array(WhisperModelSpec.multilingual.enumerated()), id: \.element.id) { index, spec in
+                            modelRow(spec)
+                            if index < WhisperModelSpec.multilingual.count - 1 {
+                                Divider().overlay(YaptypeTheme.line).padding(.leading, 20)
+                            }
+                        }
+                    }
+                }
+                Text("These models hear any language. Large v3 Turbo is the default.")
+                    .font(.caption)
+                    .foregroundStyle(YaptypeTheme.muted)
+                if let error = models.lastError {
+                    Text(error)
                         .font(.caption)
-                        .foregroundStyle(.secondary)
-                    Text(MLXModelSpec.recommended.sizeLabel)
+                        .foregroundStyle(.orange)
+                }
+
+                if settings.language == .en {
+                    Text("English only")
+                        .font(.system(size: 18))
+                        .foregroundStyle(YaptypeTheme.ink)
+                    YaptypeCard(padding: 0) {
+                        VStack(spacing: 0) {
+                            ForEach(Array(WhisperModelSpec.englishOnlyModels.enumerated()), id: \.element.id) { index, spec in
+                                modelRow(spec)
+                                if index < WhisperModelSpec.englishOnlyModels.count - 1 {
+                                    Divider().overlay(YaptypeTheme.line).padding(.leading, 20)
+                                }
+                            }
+                        }
+                    }
+                }
+
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Rewrite")
+                        .font(.system(size: 18))
+                        .foregroundStyle(YaptypeTheme.ink)
+                    Text("Optional local model used to clean dictation when Apple Intelligence is unavailable.")
+                        .font(.system(size: 13))
+                        .foregroundStyle(YaptypeTheme.muted)
+                }
+
+                YaptypeCard {
+                    HStack {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(MLXModelSpec.recommended.title)
+                                .font(.system(size: 15))
+                                .foregroundStyle(YaptypeTheme.ink)
+                            Text("Local rewrite model")
+                                .font(.caption)
+                                .foregroundStyle(YaptypeTheme.muted)
+                        }
+                        Spacer()
+                        StatusDot(ok: rewrite.mlxReady, label: rewrite.mlxReady ? "Downloaded" : "Not downloaded")
+                        GhostButton(title: rewrite.mlxReady ? "Reload" : "Download") {
+                            Task { await rewrite.prepareMLX() }
+                        }
+                        .disabled(rewrite.mlxLoading)
+                    }
+                    Text("Used only when local rewriting is enabled.")
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(YaptypeTheme.muted)
                     if rewrite.mlxLoading {
                         ProgressView(value: rewrite.mlxProgress)
-                        Text("Downloading… \(Int(rewrite.mlxProgress * 100))%")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                    } else if rewrite.mlxCanRun {
-                        Label("Ready", systemImage: "checkmark.circle.fill")
-                            .foregroundStyle(.green)
-                            .font(.caption)
-                    } else if rewrite.mlxReady {
-                        Label("Downloaded", systemImage: "checkmark.circle")
-                            .foregroundStyle(.secondary)
-                            .font(.caption)
-                        Text("Polish uses Apple Intelligence or local rules in this build.")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
                     }
-                    Button(rewrite.mlxReady ? "Reload" : "Download") {
-                        Task { await rewrite.prepareMLX() }
-                    }
-                    .disabled(rewrite.mlxLoading)
                     if let error = rewrite.lastError {
-                        Text(error).font(.caption2).foregroundStyle(.orange)
+                        Text(error).font(.caption).foregroundStyle(.orange)
                     }
                 }
-                .padding(.vertical, 4)
+
+                YaptypeCard {
+                    HStack {
+                        Label("Installed model storage", systemImage: "internaldrive")
+                            .foregroundStyle(YaptypeTheme.ink)
+                        Spacer()
+                        Text(ByteCountFormatter.string(fromByteCount: models.installedStorageBytes(), countStyle: .file))
+                            .foregroundStyle(YaptypeTheme.muted)
+                    }
+                    .font(.system(size: 13.5))
+                }
             }
+            .padding(28)
         }
-        .onAppear { models.refreshInstalled() }
+        .background(YaptypeTheme.canvas)
+        .onAppear {
+            models.refreshInstalled()
+            pipeline.ensureCompatibleModel()
+        }
     }
 
     private func modelRow(_ spec: WhisperModelSpec) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack {
-                        Text(spec.title).font(.headline)
-                        if spec.recommended {
-                            Text("Recommended")
-                                .font(.caption2)
-                                .padding(.horizontal, 6)
-                                .padding(.vertical, 2)
-                                .background(Color.accentColor.opacity(0.15), in: Capsule())
-                        }
+        HStack(alignment: .center, spacing: 12) {
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 8) {
+                    Text(spec.title)
+                        .font(.system(size: 15))
+                        .foregroundStyle(YaptypeTheme.ink)
+                    if spec.recommended {
+                        Text("Recommended")
+                            .font(.system(size: 11))
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 3)
+                            .background(YaptypeTheme.orangeSoft, in: Capsule())
+                            .foregroundStyle(YaptypeTheme.orange)
                     }
-                    Text(spec.subtitle)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    Text(spec.sizeLabel + (spec.englishOnly ? " · English" : " · Multilingual"))
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
                 }
-                Spacer()
-                if models.downloadingID == spec.id {
-                    ProgressView(value: models.downloadProgress)
-                        .frame(width: 84)
-                } else if models.isInstalled(spec) {
-                    Image(systemName: "checkmark.circle.fill")
-                        .foregroundStyle(.green)
+                Text("\(spec.sizeLabel) · \(spec.subtitle)")
+                    .font(.caption)
+                    .foregroundStyle(YaptypeTheme.muted)
+                if settings.selectedModelID == spec.id, models.isInstalled(spec) {
+                    StatusDot(ok: true, label: "In use")
+                } else if !models.isInstalled(spec) {
+                    Text("Not downloaded")
+                        .font(.caption)
+                        .foregroundStyle(YaptypeTheme.muted)
                 }
             }
-
-            HStack {
-                if settings.selectedModelID == spec.id {
-                    Label("In use", systemImage: "mic.fill")
-                        .font(.caption)
-                } else if models.isInstalled(spec) {
-                    Button("Use this model") {
+            Spacer()
+            if models.downloadingID == spec.id {
+                ProgressView(value: models.downloadProgress)
+                    .frame(width: 90)
+            } else if models.isInstalled(spec) {
+                Image(systemName: "checkmark.circle.fill")
+                    .foregroundStyle(YaptypeTheme.green)
+                if settings.selectedModelID != spec.id, spec.supports(settings.language) {
+                    GhostButton(title: "Use") {
                         settings.selectedModelID = spec.id
                         Task {
                             await transcription.prewarm(modelID: spec.id)
@@ -99,44 +169,30 @@ struct ModelsSettingsView: View {
                         }
                     }
                 }
-
-                Spacer()
-
-                if models.isInstalled(spec) {
-                    Button("Remove", role: .destructive) {
-                        try? models.delete(spec)
-                        if settings.selectedModelID == spec.id {
-                            settings.selectedModelID = models.installedIDs.first ?? WhisperModelSpec.recommended.id
-                        }
-                        pipeline.refreshStatus()
-                    }
-                } else {
-                    Button("Download") {
-                        Task {
-                            do {
-                                try await models.download(spec)
-                                if settings.selectedModelID == spec.id {
-                                    await transcription.prewarm(modelID: spec.id)
-                                }
-                                pipeline.refreshStatus()
-                            } catch {
-                                models.lastError = error.localizedDescription
-                            }
-                        }
-                    }
-                    .disabled(models.downloadingID != nil)
+                GhostButton(title: "Remove") {
+                    try? models.delete(spec)
+                    pipeline.ensureCompatibleModel()
+                    pipeline.refreshStatus()
                 }
-            }
-
-            if models.downloadingID == spec.id {
-                Text("Downloading… \(Int(models.downloadProgress * 100))%")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-            }
-            if let error = models.lastError, models.downloadingID == spec.id {
-                Text(error).font(.caption2).foregroundStyle(.orange)
+            } else {
+                GhostButton(title: "Download") {
+                    Task {
+                        do {
+                            try await models.download(spec)
+                            if settings.selectedModelID == spec.id || !models.installedIDs.contains(settings.selectedModelID) {
+                                settings.selectedModelID = spec.id
+                                await transcription.prewarm(modelID: spec.id)
+                            }
+                            pipeline.ensureCompatibleModel()
+                            pipeline.refreshStatus()
+                        } catch {
+                            models.lastError = error.localizedDescription
+                        }
+                    }
+                }
+                .disabled(models.downloadingID != nil)
             }
         }
-        .padding(.vertical, 6)
+        .padding(16)
     }
 }

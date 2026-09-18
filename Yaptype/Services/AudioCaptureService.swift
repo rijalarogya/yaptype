@@ -25,6 +25,7 @@ final class AudioCaptureService: @unchecked Sendable {
     private var startedAt: Date?
     private var latestLevel: Float = 0
     private var tapInstalled = false
+    private var frozenElapsed: Double?
 
     var level: Float {
         lock.lock()
@@ -33,7 +34,15 @@ final class AudioCaptureService: @unchecked Sendable {
     }
 
     func start() throws {
-        stopAndClear()
+        try start(clearing: true)
+    }
+
+    func start(clearing: Bool) throws {
+        if clearing {
+            stopAndClear()
+        } else {
+            pauseCapture()
+        }
 
         let input = engine.inputNode
         let inputFormat = input.outputFormat(forBus: 0)
@@ -51,7 +60,15 @@ final class AudioCaptureService: @unchecked Sendable {
         }
 
         converter = AVAudioConverter(from: inputFormat, to: outputFormat)
-        startedAt = Date()
+        if clearing {
+            startedAt = Date()
+            frozenElapsed = nil
+        } else if let frozen = frozenElapsed {
+            startedAt = Date().addingTimeInterval(-frozen)
+            frozenElapsed = nil
+        } else if startedAt == nil {
+            startedAt = Date()
+        }
 
         input.installTap(onBus: 0, bufferSize: 1024, format: inputFormat) { [weak self] buffer, _ in
             self?.append(buffer: buffer, outputFormat: outputFormat)
@@ -62,8 +79,44 @@ final class AudioCaptureService: @unchecked Sendable {
         try engine.start()
     }
 
+    func pauseCapture() {
+        if frozenElapsed == nil {
+            frozenElapsed = elapsedSeconds()
+        }
+        if engine.isRunning {
+            engine.stop()
+        }
+        if tapInstalled {
+            engine.inputNode.removeTap(onBus: 0)
+            tapInstalled = false
+        }
+        converter = nil
+        lock.lock()
+        latestLevel = 0
+        lock.unlock()
+    }
+
+    func sampleCount() -> Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return samples.count
+    }
+
+    func elapsedSeconds() -> Double {
+        if let frozenElapsed { return frozenElapsed }
+        return Date().timeIntervalSince(startedAt ?? Date())
+    }
+
+    func copySamples(from start: Int, upTo end: Int? = nil) -> [Float] {
+        lock.lock()
+        defer { lock.unlock() }
+        let endIndex = min(end ?? samples.count, samples.count)
+        let startIndex = min(max(0, start), endIndex)
+        return Array(samples[startIndex..<endIndex])
+    }
+
     func stop() -> (samples: [Float], seconds: Double) {
-        let duration = Date().timeIntervalSince(startedAt ?? Date())
+        let duration = elapsedSeconds()
         if engine.isRunning {
             engine.stop()
         }
@@ -78,6 +131,8 @@ final class AudioCaptureService: @unchecked Sendable {
         samples = []
         latestLevel = 0
         lock.unlock()
+        startedAt = nil
+        frozenElapsed = nil
         return (captured, max(0, duration))
     }
 
@@ -93,6 +148,8 @@ final class AudioCaptureService: @unchecked Sendable {
         samples = []
         latestLevel = 0
         lock.unlock()
+        startedAt = nil
+        frozenElapsed = nil
     }
 
     private func append(buffer: AVAudioPCMBuffer, outputFormat: AVAudioFormat) {

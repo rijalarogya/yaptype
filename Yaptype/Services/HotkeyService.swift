@@ -48,7 +48,11 @@ final class HotkeyService: ObservableObject, @unchecked Sendable {
             _ = installTap(options: .listenOnly, mask: mask, pointer: pointer)
         }
 
-        startEventMonitors()
+        // A live event tap already sees every key. Extra NSEvent monitors
+        // would fire the same press/release again.
+        if tap == nil {
+            startEventMonitors()
+        }
         if tap == nil, globalMonitor == nil {
             lastError = "Yaptype needs Accessibility to listen for the dictation hotkey. If it is already on, remove old Yaptype rows and add this app, then quit and reopen."
         }

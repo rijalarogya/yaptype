@@ -1,6 +1,6 @@
 # Agent notes
 
-Yaptype is a native SwiftUI + AppKit menu-bar dictation app for Apple Silicon Macs.
+Yaptype is a native SwiftUI + AppKit dictation app for Apple Silicon Macs. It stays in the menu bar and also opens a main window for Note Taker, file transcription, history, and settings.
 
 ## Do
 

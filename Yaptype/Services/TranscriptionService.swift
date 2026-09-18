@@ -7,6 +7,7 @@ final class TranscriptionService: ObservableObject {
 
     @Published private(set) var isReady = false
     @Published private(set) var isLoading = false
+    @Published private(set) var isBusy = false
     @Published private(set) var loadedModelID: String?
     @Published var lastError: String?
 
@@ -50,7 +51,26 @@ final class TranscriptionService: ObservableObject {
         modelID: String,
         language: TranscriptionLanguage
     ) async throws -> String {
-        guard samples.count > Int(AudioCaptureService.sampleRate * 0.35) else {
+        let output = try await transcribeDetailed(
+            samples: samples,
+            modelID: modelID,
+            language: language,
+            includeTimestamps: false,
+            allowShort: false,
+            progress: nil
+        )
+        return output.text
+    }
+
+    func transcribeDetailed(
+        samples: [Float],
+        modelID: String,
+        language: TranscriptionLanguage,
+        includeTimestamps: Bool,
+        allowShort: Bool = false,
+        progress: (@MainActor (Double) -> Void)? = nil
+    ) async throws -> TranscriptionOutput {
+        guard samples.count > Int(AudioCaptureService.sampleRate * (allowShort ? 0.6 : 0.35)) else {
             throw TranscriptionError.emptyAudio
         }
         if peakLevel(samples) < 0.004 {
@@ -64,8 +84,20 @@ final class TranscriptionService: ObservableObject {
             throw TranscriptionError.stillCompiling
         }
 
+        isBusy = true
+        defer { isBusy = false }
+
         do {
-            return try await runtime.transcribe(samples: samples, language: language)
+            return try await runtime.transcribeDetailed(
+                samples: samples,
+                language: language,
+                includeTimestamps: includeTimestamps,
+                progress: { value in
+                    Task { @MainActor in
+                        progress?(value)
+                    }
+                }
+            )
         } catch is CancellationError {
             throw TranscriptionError.cancelled
         } catch let error as TranscriptionError {
@@ -136,7 +168,7 @@ actor WhisperRuntime {
     private var pipe: WhisperKit?
     private var loadedModelID: String?
     private var loadTask: Task<WhisperKit, Error>?
-    private var transcribeTask: Task<String, Error>?
+    private var transcribeTask: Task<TranscriptionOutput, Error>?
 
     func isCompiling() -> Bool { loadTask != nil && pipe == nil }
 
@@ -177,6 +209,21 @@ actor WhisperRuntime {
     }
 
     func transcribe(samples: [Float], language: TranscriptionLanguage) async throws -> String {
+        let output = try await transcribeDetailed(
+            samples: samples,
+            language: language,
+            includeTimestamps: false,
+            progress: nil
+        )
+        return output.text
+    }
+
+    func transcribeDetailed(
+        samples: [Float],
+        language: TranscriptionLanguage,
+        includeTimestamps: Bool,
+        progress: (@Sendable (Double) -> Void)?
+    ) async throws -> TranscriptionOutput {
         guard let pipe else {
             throw TranscriptionError.stillCompiling
         }
@@ -184,7 +231,13 @@ actor WhisperRuntime {
         transcribeTask?.cancel()
         let kit = pipe
         let task = Task.detached(priority: .userInitiated) {
-            try await Self.runTranscribe(kit: kit, samples: samples, language: language)
+            try await Self.runTranscribeDetailed(
+                kit: kit,
+                samples: samples,
+                language: language,
+                includeTimestamps: includeTimestamps,
+                progress: progress
+            )
         }
         transcribeTask = task
         defer { transcribeTask = nil }
@@ -219,16 +272,97 @@ actor WhisperRuntime {
         samples: [Float],
         language: TranscriptionLanguage
     ) async throws -> String {
+        let output = try await runTranscribeDetailed(
+            kit: kit,
+            samples: samples,
+            language: language,
+            includeTimestamps: false,
+            progress: nil
+        )
+        return output.text
+    }
+
+    private static func runTranscribeDetailed(
+        kit: WhisperKit,
+        samples: [Float],
+        language: TranscriptionLanguage,
+        includeTimestamps: Bool,
+        progress: (@Sendable (Double) -> Void)?
+    ) async throws -> TranscriptionOutput {
         try Task.checkCancellation()
-        let detect = language == .auto
+        let resolvedLanguage: String?
+        let shouldDetect = language == .auto
+        if shouldDetect {
+            resolvedLanguage = try await Self.detectSpokenLanguage(kit: kit, samples: samples)
+        } else {
+            resolvedLanguage = language.rawValue
+        }
+
+        let sampleRate = Int(AudioCaptureService.sampleRate)
+        let window = 30 * sampleRate
+        var offset = 0
+        var segments: [TranscriptSegment] = []
+        var texts: [String] = []
+
+        if samples.count <= window {
+            let chunk = try await Self.decodeWindow(
+                kit: kit,
+                samples: samples,
+                language: resolvedLanguage,
+                includeTimestamps: includeTimestamps,
+                timeOffset: 0
+            )
+            progress?(1)
+            return chunk
+        }
+
+        while offset < samples.count {
+            try Task.checkCancellation()
+            let end = min(offset + window, samples.count)
+            let slice = Array(samples[offset..<end])
+            let timeOffset = Double(offset) / AudioCaptureService.sampleRate
+            do {
+                let chunk = try await Self.decodeWindow(
+                    kit: kit,
+                    samples: slice,
+                    language: resolvedLanguage,
+                    includeTimestamps: includeTimestamps,
+                    timeOffset: timeOffset
+                )
+                segments.append(contentsOf: chunk.segments)
+                if !chunk.text.isEmpty {
+                    texts.append(chunk.text)
+                }
+            } catch TranscriptionError.noSpeech {
+                // Skip silent windows in long files.
+            }
+            offset = end
+            progress?(min(1, Double(end) / Double(samples.count)))
+        }
+
+        let text = texts.joined(separator: " ").trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else {
+            throw TranscriptionError.noSpeech
+        }
+        return TranscriptionOutput(text: text, segments: segments)
+    }
+
+    private static func decodeWindow(
+        kit: WhisperKit,
+        samples: [Float],
+        language: String?,
+        includeTimestamps: Bool,
+        timeOffset: TimeInterval
+    ) async throws -> TranscriptionOutput {
         let options = DecodingOptions(
             task: .transcribe,
-            language: detect ? nil : language.rawValue,
+            language: language,
             temperatureFallbackCount: 2,
-            usePrefillPrompt: true,
-            detectLanguage: detect,
+            usePrefillPrompt: language != nil,
+            usePrefillCache: false,
+            detectLanguage: language == nil,
             skipSpecialTokens: true,
-            withoutTimestamps: true,
+            withoutTimestamps: !includeTimestamps,
             noSpeechThreshold: 0.9,
             concurrentWorkerCount: 1,
             chunkingStrategy: ChunkingStrategy.none
@@ -236,13 +370,54 @@ actor WhisperRuntime {
 
         let results = try await kit.transcribe(audioArray: samples, decodeOptions: options)
         try Task.checkCancellation()
-        let text = results
-            .map(\.text)
-            .joined(separator: " ")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !text.isEmpty else {
+        let output = TranscriptionOutput.from(results: results, timeOffset: timeOffset)
+        if output.text.isEmpty {
             throw TranscriptionError.noSpeech
         }
-        return text
+        return output
+    }
+
+    private static func detectSpokenLanguage(kit: WhisperKit, samples: [Float]) async throws -> String? {
+        do {
+            let detected = try await kit.detectLangauge(audioArray: samples)
+            return detected.language
+        } catch {
+            return nil
+        }
+    }
+}
+
+struct TranscriptionOutput: Sendable {
+    var text: String
+    var segments: [TranscriptSegment]
+
+    static func from(results: [TranscriptionResult], timeOffset: TimeInterval) -> TranscriptionOutput {
+        var segments: [TranscriptSegment] = []
+        var texts: [String] = []
+        for result in results {
+            let cleaned = result.text.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !cleaned.isEmpty {
+                texts.append(cleaned)
+            }
+            for segment in result.segments {
+                let text = segment.text.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !text.isEmpty else { continue }
+                segments.append(
+                    TranscriptSegment(
+                        start: timeOffset + TimeInterval(segment.start),
+                        end: timeOffset + TimeInterval(max(segment.end, segment.start)),
+                        text: text
+                    )
+                )
+            }
+        }
+
+        let text = texts.joined(separator: " ").trimmingCharacters(in: .whitespacesAndNewlines)
+        if segments.isEmpty, !text.isEmpty {
+            segments = [
+                TranscriptSegment(start: timeOffset, end: timeOffset, text: text)
+            ]
+        }
+        return TranscriptionOutput(text: text, segments: segments)
     }
 }

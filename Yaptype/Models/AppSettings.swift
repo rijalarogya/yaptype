@@ -51,7 +51,7 @@ enum TranscriptionLanguage: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .auto: "Detect automatically"
+        case .auto: "Auto"
         case .en: "English"
         case .es: "Spanish"
         case .fr: "French"
@@ -63,6 +63,10 @@ enum TranscriptionLanguage: String, CaseIterable, Identifiable {
         case .ar: "Arabic"
         }
     }
+
+    var needsMultilingualModel: Bool {
+        self != .en
+    }
 }
 
 @MainActor
@@ -71,7 +75,7 @@ final class AppSettings: ObservableObject {
 
     @AppStorage("hasCompletedOnboarding") var hasCompletedOnboarding = false
     @AppStorage("selectedModelID") var selectedModelID = WhisperModelSpec.recommended.id
-    @AppStorage("language") var languageRaw = TranscriptionLanguage.en.rawValue
+    @AppStorage("dictationLanguage") var languageRaw = TranscriptionLanguage.auto.rawValue
     @AppStorage("rewriteEnabled") var rewriteEnabled = true
     @AppStorage("preferAppleIntelligence") var preferAppleIntelligence = true
     @AppStorage("hotkey") var hotkeyRaw = HotkeyPreset.rightOption.rawValue
@@ -84,8 +88,18 @@ final class AppSettings: ObservableObject {
     }
 
     var language: TranscriptionLanguage {
-        get { TranscriptionLanguage(rawValue: languageRaw) ?? .en }
+        get { TranscriptionLanguage(rawValue: languageRaw) ?? .auto }
         set { languageRaw = newValue.rawValue }
+    }
+
+    func binding<Value>(_ keyPath: ReferenceWritableKeyPath<AppSettings, Value>) -> Binding<Value> {
+        Binding(
+            get: { self[keyPath: keyPath] },
+            set: { newValue in
+                self.objectWillChange.send()
+                self[keyPath: keyPath] = newValue
+            }
+        )
     }
 
     func applyLaunchAtLogin() {

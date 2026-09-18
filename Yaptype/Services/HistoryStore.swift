@@ -36,6 +36,16 @@ final class HistoryStore: ObservableObject {
         save()
     }
 
+    func update(_ item: HistoryItem) {
+        guard let index = items.firstIndex(where: { $0.id == item.id }) else { return }
+        items[index] = item
+        save()
+    }
+
+    func items(kind: HistoryKind) -> [HistoryItem] {
+        items.filter { $0.kind == kind }
+    }
+
     func clear() {
         items = []
         save()

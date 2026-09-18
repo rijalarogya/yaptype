@@ -28,4 +28,40 @@ final class RewriteGuardTests: XCTestCase {
             )
         )
     }
+
+    func testRejectsTranslationToEnglish() {
+        XCTAssertFalse(
+            RewriteGuard.isFaithfulRewrite(
+                original: "你好世界 今天天气很好",
+                candidate: "Hello world. The weather is nice today."
+            )
+        )
+    }
+
+    func testKeepsSameLanguageCleanup() {
+        XCTAssertTrue(
+            RewriteGuard.isFaithfulRewrite(
+                original: "hola mundo esto es una prueba",
+                candidate: "Hola mundo, esto es una prueba."
+            )
+        )
+    }
+
+    func testAllowsDoToDidTenseFix() {
+        XCTAssertTrue(
+            RewriteGuard.isFaithfulRewrite(
+                original: "Hi, do you go to college yesterday?",
+                candidate: "Hi, did you go to college yesterday?"
+            )
+        )
+    }
+
+    func testRejectsChattyCollegeRewrite() {
+        XCTAssertFalse(
+            RewriteGuard.isFaithfulRewrite(
+                original: "Hi, do you go to college yesterday?",
+                candidate: "Hi, did you attend university yesterday? How was it?"
+            )
+        )
+    }
 }

@@ -40,7 +40,9 @@ final class RewriteService: ObservableObject {
             return (trimmed, "Off")
         }
 
-        if settings.preferAppleIntelligence, apple.isAvailable {
+        let allowLLM = RewriteGuard.isPrimarilyLatin(trimmed)
+
+        if allowLLM, settings.preferAppleIntelligence, apple.isAvailable {
             do {
                 let result = try await apple.rewrite(trimmed)
                 if RewriteGuard.isFaithfulRewrite(original: trimmed, candidate: result) {
@@ -52,21 +54,33 @@ final class RewriteService: ObservableObject {
             }
         }
 
-        if mlx.canRunModel {
+        let fallback = RuleBasedRewriter.rewrite(trimmed)
+        lastEngineName = "Rules"
+        return (fallback, "Rules")
+    }
+
+    func extractNotes(from transcript: String) async -> String {
+        let trimmed = transcript.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            return NotesExtractor.extract(trimmed)
+        }
+
+        if settings.preferAppleIntelligence, apple.isAvailable {
             do {
-                let result = try await mlx.rewrite(trimmed)
-                if RewriteGuard.isFaithfulRewrite(original: trimmed, candidate: result) {
-                    lastEngineName = mlx.name
-                    return (result, mlx.name)
+                let result = try await apple.complete(
+                    instructions: RewritePrompt.notesSystem,
+                    user: RewritePrompt.notesUser(for: trimmed),
+                    maxTokens: 400
+                )
+                if result.localizedCaseInsensitiveContains("key points") {
+                    return result
                 }
             } catch {
                 lastError = error.localizedDescription
             }
         }
 
-        let fallback = RuleBasedRewriter.rewrite(trimmed)
-        lastEngineName = "Rules"
-        return (fallback, "Rules")
+        return NotesExtractor.extract(trimmed)
     }
 
     func prepareMLX() async {
@@ -118,6 +132,21 @@ final class AppleFoundationRewriter: RewriteEngine {
                 to: RewritePrompt.userPrompt(for: text),
                 options: options
             )
+            return response.content.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        #endif
+        throw RewriteUnavailableError.appleIntelligence
+    }
+
+    func complete(instructions: String, user: String, maxTokens: Int) async throws -> String {
+        #if canImport(FoundationModels)
+        if #available(macOS 26.0, *) {
+            let session = LanguageModelSession(instructions: instructions)
+            let options = GenerationOptions(
+                temperature: 0,
+                maximumResponseTokens: maxTokens
+            )
+            let response = try await session.respond(to: user, options: options)
             return response.content.trimmingCharacters(in: .whitespacesAndNewlines)
         }
         #endif

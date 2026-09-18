@@ -11,6 +11,9 @@ struct YaptypeApp: App {
     @StateObject private var history = HistoryStore.shared
     @StateObject private var rewrite = RewriteService.shared
     @StateObject private var transcription = TranscriptionService.shared
+    @StateObject private var navigation = AppNavigation.shared
+    @StateObject private var notes = NoteTakerService.shared
+    @StateObject private var files = FileTranscriptionService.shared
 
     var body: some Scene {
         MenuBarExtra {
@@ -22,10 +25,14 @@ struct YaptypeApp: App {
                 .environmentObject(history)
                 .environmentObject(rewrite)
                 .environmentObject(transcription)
+                .environmentObject(navigation)
+                .environmentObject(notes)
+                .environmentObject(files)
         } label: {
             Image(systemName: menuIcon)
                 .symbolRenderingMode(.hierarchical)
         }
+        .menuBarExtraStyle(.menu)
 
         Window("Yaptype", id: "main") {
             RootView()
@@ -36,10 +43,14 @@ struct YaptypeApp: App {
                 .environmentObject(history)
                 .environmentObject(rewrite)
                 .environmentObject(transcription)
-                .frame(minWidth: 640, minHeight: 480)
+                .environmentObject(navigation)
+                .environmentObject(notes)
+                .environmentObject(files)
+                .preferredColorScheme(.light)
+                .frame(minWidth: 980, minHeight: 640)
         }
         .windowResizability(.contentMinSize)
-        .defaultSize(width: 760, height: 560)
+        .defaultSize(width: 1180, height: 760)
 
         Settings {
             SettingsView()
@@ -50,7 +61,11 @@ struct YaptypeApp: App {
                 .environmentObject(history)
                 .environmentObject(rewrite)
                 .environmentObject(transcription)
-                .frame(width: 640, height: 520)
+                .environmentObject(navigation)
+                .environmentObject(notes)
+                .environmentObject(files)
+                .preferredColorScheme(.light)
+                .frame(width: 760, height: 560)
         }
     }
 
@@ -80,7 +95,10 @@ final class YaptypeAppDelegate: NSObject, NSApplicationDelegate {
         }
 
         if AppSettings.shared.hasCompletedOnboarding {
-            NSApp.setActivationPolicy(.accessory)
+            NSApp.setActivationPolicy(.regular)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                self.openMainWindow()
+            }
         } else {
             NSApp.setActivationPolicy(.regular)
             NSApp.activate(ignoringOtherApps: true)

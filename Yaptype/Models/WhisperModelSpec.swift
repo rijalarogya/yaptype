@@ -15,61 +15,96 @@ struct WhisperModelSpec: Identifiable, Hashable, Sendable {
     static let recommendedID = "large-v3-v20240930_turbo"
 
     static let recommended: WhisperModelSpec =
-        all.first { $0.id == recommendedID } ?? all[2]
+        all.first { $0.id == recommendedID } ?? all[0]
+
+    static var multilingual: [WhisperModelSpec] { all.filter { !$0.englishOnly } }
+    static var englishOnlyModels: [WhisperModelSpec] { all.filter(\.englishOnly) }
 
     static let all: [WhisperModelSpec] = [
         WhisperModelSpec(
-            id: "tiny.en",
-            title: "Tiny English",
-            subtitle: "Fastest. Good for testing, weaker accuracy.",
-            approxBytes: 75_000_000,
-            recommended: false,
-            englishOnly: true
-        ),
-        WhisperModelSpec(
-            id: "base.en",
-            title: "Base English",
-            subtitle: "Light and quick for short dictation.",
-            approxBytes: 145_000_000,
-            recommended: false,
-            englishOnly: true
-        ),
-        WhisperModelSpec(
-            id: "small.en",
-            title: "Small English",
-            subtitle: "Solid laptop default on older M-series chips.",
-            approxBytes: 466_000_000,
-            recommended: false,
-            englishOnly: true
-        ),
-        WhisperModelSpec(
             id: "large-v3-v20240930_turbo",
             title: "Large v3 Turbo",
-            subtitle: "Best daily driver on Mac. Fast and accurate.",
+            subtitle: "Best daily driver. Hears any language.",
             approxBytes: 1_600_000_000,
             recommended: true,
             englishOnly: false
         ),
         WhisperModelSpec(
             id: "large-v3-v20240930_626MB",
-            title: "Large v3 Turbo (compressed)",
-            subtitle: "Near-turbo quality at a smaller download.",
+            title: "Turbo compressed",
+            subtitle: "Smaller download, same languages.",
             approxBytes: 626_000_000,
             recommended: false,
             englishOnly: false
         ),
         WhisperModelSpec(
             id: "small",
-            title: "Small multilingual",
-            subtitle: "Smaller multilingual model when you switch languages.",
+            title: "Small",
+            subtitle: "Lighter multilingual model.",
             approxBytes: 466_000_000,
             recommended: false,
             englishOnly: false
+        ),
+        WhisperModelSpec(
+            id: "base",
+            title: "Base",
+            subtitle: "Fast and small. Weaker accuracy.",
+            approxBytes: 145_000_000,
+            recommended: false,
+            englishOnly: false
+        ),
+        WhisperModelSpec(
+            id: "tiny",
+            title: "Tiny",
+            subtitle: "Smallest multilingual model.",
+            approxBytes: 75_000_000,
+            recommended: false,
+            englishOnly: false
+        ),
+        WhisperModelSpec(
+            id: "small.en",
+            title: "Small English",
+            subtitle: "English only.",
+            approxBytes: 466_000_000,
+            recommended: false,
+            englishOnly: true
+        ),
+        WhisperModelSpec(
+            id: "base.en",
+            title: "Base English",
+            subtitle: "English only.",
+            approxBytes: 145_000_000,
+            recommended: false,
+            englishOnly: true
+        ),
+        WhisperModelSpec(
+            id: "tiny.en",
+            title: "Tiny English",
+            subtitle: "English only.",
+            approxBytes: 75_000_000,
+            recommended: false,
+            englishOnly: true
         )
     ]
 
     static func spec(for id: String) -> WhisperModelSpec? {
         all.first { $0.id == id }
+    }
+
+    func supports(_ language: TranscriptionLanguage) -> Bool {
+        if language.needsMultilingualModel { return !englishOnly }
+        return true
+    }
+
+    static func preferredMultilingual(installed: Set<String>) -> WhisperModelSpec? {
+        let order = [
+            recommendedID,
+            "large-v3-v20240930_626MB",
+            "small",
+            "base",
+            "tiny"
+        ]
+        return order.compactMap(spec(for:)).first { installed.contains($0.id) }
     }
 }
 

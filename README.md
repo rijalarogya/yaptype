@@ -1,6 +1,6 @@
 # Yaptype
 
-Yaptype is a free, open-source, Mac-only dictation app. Hold a hotkey, speak, release, and polished text is pasted wherever your cursor is.
+Yaptype is a free, open-source, Mac-only dictation app. Hold a hotkey, speak, release, and polished text is pasted wherever your cursor is. The main window also includes **Note Taker** for longer recordings and **File Transcription** for audio or video files.
 
 It is a local alternative to cloud dictation tools such as Wispr Flow. Audio is transcribed on your Mac with downloadable [OpenAI Whisper](https://github.com/openai/whisper) models via [WhisperKit](https://github.com/argmaxinc/argmax-oss-swift). Optional rewrite uses Apple Intelligence when available, otherwise a downloadable Qwen model, otherwise a small rule-based cleaner.
 
@@ -20,6 +20,8 @@ No account. No cloud STT. Apple Silicon only.
 4. Download a Whisper model (Large v3 Turbo is the recommended daily driver).
 
 Hold **Right Option** to dictate. Release to insert text. Press **Esc** to cancel.
+
+Open the main window for **Note Taker** (live meeting transcripts and notes) and **File Transcription** (drop MP3, WAV, M4A, MP4, or MOV). Everything stays on this Mac.
 
 ## Models
 
@@ -66,7 +68,7 @@ Package a disk image:
 
 ## Permissions
 
-Yaptype is **not sandboxed**. System-wide hotkeys and pasting into other apps require Accessibility. Microphone access is used only while the hotkey is held.
+Yaptype is **not sandboxed**. System-wide hotkeys and pasting into other apps require Accessibility. - Microphone access is used while you dictate or record a note.
 
 Notarizing a public release needs an Apple Developer ID. Unsigned local builds work after you right-click → Open the first time, or after copying a self-signed Debug build into Applications.
 

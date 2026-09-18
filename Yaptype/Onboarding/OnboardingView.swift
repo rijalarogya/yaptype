@@ -47,7 +47,7 @@ struct OnboardingView: View {
                 Spacer()
                 Button("Continue") {
                     settings.hasCompletedOnboarding = true
-                    NSApp.setActivationPolicy(.accessory)
+                    NSApp.setActivationPolicy(.regular)
                     pipeline.restartHotkey()
                     pipeline.refreshStatus()
                 }
@@ -67,12 +67,15 @@ struct OnboardingView: View {
     }
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Yaptype")
-                .font(.system(size: 28, weight: .semibold))
-            Text("Hold a key, speak, and polished text appears at your cursor. Whisper runs locally. Nothing is uploaded.")
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
+        HStack(alignment: .top, spacing: 14) {
+            YaptypeLogoMark(size: 52)
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Yaptype")
+                    .font(.system(size: 28, weight: .semibold))
+                Text("Hold a key and speak any language. Text is typed as you said it. Whisper stays on this Mac.")
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
         .padding(24)
     }
@@ -82,9 +85,9 @@ struct OnboardingView: View {
         let installed = models.isInstalled(spec)
 
         return VStack(alignment: .leading, spacing: 10) {
-            Label("Download Whisper \(spec.title)", systemImage: "arrow.down.circle")
+            Label("Download \(spec.title)", systemImage: "arrow.down.circle")
                 .font(.headline)
-            Text("\(spec.subtitle) About \(spec.sizeLabel). Stored in Application Support, used only on this Mac.")
+            Text("Needed for Auto language detect. About \(spec.sizeLabel), stored only on this Mac.")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
             if downloading || models.downloadingID == spec.id {

@@ -56,26 +56,61 @@ final class TextInsertionService {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { throw TextInsertionError.emptyText }
 
-        rememberTarget()
-        await activateTarget()
+        await activateTargetIfNeeded()
+        try? await Task.sleep(for: .milliseconds(40))
 
-        if let element = targetElement, setSelectedText(element, trimmed) {
-            return
-        }
-        if let focused = copyFocusedElement(), !isYaptype(focused), setSelectedText(focused, trimmed) {
-            return
-        }
+        // Clipboard paste is the reliable path in Notes, Slack, editors, and
+        // most browsers. Accessibility writes often report success without
+        // changing the field — except Chrome's omnibox, which made us skip paste.
         try insertWithClipboard(trimmed)
+        try? await Task.sleep(for: .milliseconds(90))
+
+        if fieldAlreadyContains(trimmed) {
+            return
+        }
+
+        // Only fall back to AX when we can read the field and paste did not land.
+        if canReadFocusedField(), let element = primaryElement() {
+            _ = writeSelectedText(element, trimmed)
+        }
     }
 
-    private func activateTarget() async {
+    private func activateTargetIfNeeded() async {
         guard let app = targetApp, !app.isTerminated else { return }
+        if app.processIdentifier == NSWorkspace.shared.frontmostApplication?.processIdentifier {
+            return
+        }
         if #available(macOS 14.0, *) {
             _ = app.activate()
         } else {
             app.activate(options: [.activateIgnoringOtherApps])
         }
-        try? await Task.sleep(for: .milliseconds(90))
+        try? await Task.sleep(for: .milliseconds(80))
+    }
+
+    private func primaryElement() -> AXUIElement? {
+        if let focused = copyFocusedElement(), !isYaptype(focused) {
+            return focused
+        }
+        if let targetElement, !isYaptype(targetElement) {
+            return targetElement
+        }
+        return nil
+    }
+
+    private func candidateElements() -> [AXUIElement] {
+        [targetElement, copyFocusedElement()].compactMap { element in
+            guard let element, !isYaptype(element) else { return nil }
+            return element
+        }
+    }
+
+    private func canReadFocusedField() -> Bool {
+        candidateElements().contains { !$0.fieldValue.isEmpty }
+    }
+
+    private func fieldAlreadyContains(_ text: String) -> Bool {
+        candidateElements().contains { $0.fieldValue.contains(text) }
     }
 
     private func copyFocusedElement() -> AXUIElement? {
@@ -90,24 +125,14 @@ final class TextInsertionService {
         return (focusedRef as! AXUIElement)
     }
 
-    private func setSelectedText(_ element: AXUIElement, _ text: String) -> Bool {
-        var selectedRef: CFTypeRef?
-        AXUIElementCopyAttributeValue(element, kAXSelectedTextAttribute as CFString, &selectedRef)
-        let before = selectedRef as? String
-
-        let setStatus = AXUIElementSetAttributeValue(
+    @discardableResult
+    private func writeSelectedText(_ element: AXUIElement, _ text: String) -> Bool {
+        let status = AXUIElementSetAttributeValue(
             element,
             kAXSelectedTextAttribute as CFString,
             text as CFTypeRef
         )
-        guard setStatus == .success else { return false }
-
-        var afterRef: CFTypeRef?
-        AXUIElementCopyAttributeValue(element, kAXSelectedTextAttribute as CFString, &afterRef)
-        let after = afterRef as? String
-        if after == text { return true }
-        if before != after, after?.contains(text) == true { return true }
-        return after != before
+        return status == .success
     }
 
     private func insertWithClipboard(_ text: String) throws {
@@ -124,7 +149,7 @@ final class TextInsertionService {
 
         try postPaste()
 
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
             if pasteboard.changeCount == changeCount + 1 || pasteboard.string(forType: .string) == text {
                 self.restorePasteboard(pasteboard, items: snapshot)
             }
@@ -183,5 +208,21 @@ final class TextInsertionService {
         var pid: pid_t = 0
         AXUIElementGetPid(element, &pid)
         return pid == ProcessInfo.processInfo.processIdentifier
+    }
+}
+
+private extension AXUIElement {
+    var fieldValue: String {
+        if let value = copyString(kAXValueAttribute) {
+            return value
+        }
+        return copyString(kAXSelectedTextAttribute) ?? ""
+    }
+
+    func copyString(_ attribute: String) -> String? {
+        var ref: CFTypeRef?
+        let status = AXUIElementCopyAttributeValue(self, attribute as CFString, &ref)
+        guard status == .success else { return nil }
+        return ref as? String
     }
 }

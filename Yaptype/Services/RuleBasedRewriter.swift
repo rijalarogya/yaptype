@@ -4,6 +4,7 @@ enum RuleBasedRewriter {
     static func rewrite(_ text: String) -> String {
         var value = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !value.isEmpty else { return value }
+        guard RewriteGuard.isPrimarilyLatin(value) else { return value }
 
         let fillers = [
             #"\buh-huh\b"#,
@@ -29,6 +30,7 @@ enum RuleBasedRewriter {
         }
 
         value = applySelfCorrections(value)
+        value = applyPastTenseFixes(value)
 
         let spoken: [(String, String)] = [
             (#"\bnew paragraph\b"#, "\n\n"),
@@ -79,5 +81,37 @@ enum RuleBasedRewriter {
             )
         }
         return value
+    }
+
+    private static func applyPastTenseFixes(_ text: String) -> String {
+        guard hasPastTimeWord(text) else { return text }
+        var value = text
+        let replacements: [(String, String)] = [
+            (#"\bdo you go\b"#, "did you go"),
+            (#"\bdoes he go\b"#, "did he go"),
+            (#"\bdoes she go\b"#, "did she go"),
+            (#"\bdo you\b"#, "did you"),
+            (#"\bdoes he\b"#, "did he"),
+            (#"\bdoes she\b"#, "did she"),
+            (#"\bdo I\b"#, "did I"),
+            (#"\bdoes it\b"#, "did it"),
+            (#"\bdo we\b"#, "did we"),
+            (#"\bdo they\b"#, "did they"),
+            (#"\bdoes\b"#, "did"),
+            (#"\bdo\b"#, "did")
+        ]
+        for (pattern, replacement) in replacements {
+            value = value.replacingOccurrences(
+                of: pattern,
+                with: replacement,
+                options: [.regularExpression, .caseInsensitive]
+            )
+        }
+        return value
+    }
+
+    private static func hasPastTimeWord(_ text: String) -> Bool {
+        let pattern = #"\b(yesterday|last night|last week|last month|last year|last weekend)\b"#
+        return text.range(of: pattern, options: [.regularExpression, .caseInsensitive]) != nil
     }
 }

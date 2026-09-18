@@ -3,6 +3,11 @@ import Combine
 import Foundation
 import SwiftUI
 
+enum DictationDestination: Equatable {
+    case paste
+    case scratch
+}
+
 enum DictationPhase: Equatable {
     case idle
     case recording
@@ -40,6 +45,7 @@ final class DictationPipeline: ObservableObject {
     @Published var audioLevel: Float = 0
     @Published var lastTiming = TimingSample()
     @Published var statusMessage = "Hold \(AppSettings.shared.hotkey.title) to dictate"
+    @Published var scratchText = ""
 
     private let audio = AudioCaptureService()
     private let hotkey = HotkeyService.shared
@@ -56,6 +62,7 @@ final class DictationPipeline: ObservableObject {
     private var preparingStartedAt: Date?
     private var finishing = false
     private var workTask: Task<Void, Never>?
+    private var destination: DictationDestination = .paste
 
     func start() {
         permissions.refresh()
@@ -80,9 +87,30 @@ final class DictationPipeline: ObservableObject {
 
     func useInstalledModelIfNeeded() {
         models.refreshInstalled()
-        if models.installedIDs.contains(settings.selectedModelID) { return }
-        if let installed = WhisperModelSpec.all.first(where: { models.installedIDs.contains($0.id) }) {
+        ensureCompatibleModel()
+    }
+
+    func ensureCompatibleModel() {
+        models.refreshInstalled()
+        let language = settings.language
+        if let current = WhisperModelSpec.spec(for: settings.selectedModelID),
+           models.installedIDs.contains(current.id),
+           current.supports(language) {
+            return
+        }
+        if language.needsMultilingualModel,
+           let multilingual = WhisperModelSpec.preferredMultilingual(installed: models.installedIDs) {
+            settings.selectedModelID = multilingual.id
+            return
+        }
+        if let installed = WhisperModelSpec.all.first(where: {
+            models.installedIDs.contains($0.id) && $0.supports(language)
+        }) {
             settings.selectedModelID = installed.id
+            return
+        }
+        if let current = WhisperModelSpec.spec(for: settings.selectedModelID), !current.supports(language) {
+            settings.selectedModelID = WhisperModelSpec.recommended.id
         }
     }
 
@@ -91,18 +119,37 @@ final class DictationPipeline: ObservableObject {
         refreshStatus()
     }
 
-    func beginRecording() {
-        inserter.rememberTarget()
+    func beginRecording(into destination: DictationDestination = .paste) {
+        if FileTranscriptionService.shared.isWorking {
+            showError("Wait for the file transcription to finish.")
+            return
+        }
+        if NoteTakerService.shared.isActive {
+            showError("Stop Note Taker before dictating.")
+            return
+        }
+        self.destination = destination
+        if destination == .paste {
+            inserter.rememberTarget()
+        }
         permissions.refresh()
         useInstalledModelIfNeeded()
         guard !finishing, phase == .idle || isRecoverableError else { return }
+        if settings.language.needsMultilingualModel,
+           WhisperModelSpec.preferredMultilingual(installed: models.installedIDs) == nil {
+            showError("Download a multilingual Whisper model in Settings. English-only models cannot autodetect.")
+            NSApp.activate(ignoringOtherApps: true)
+            return
+        }
         if AppInstaller.isRunningFromInstaller {
             showError("Yaptype is still on the installer disk. Quit, then open it from Applications.")
             return
         }
-        guard permissions.accessibilityGranted else {
-            showError("macOS is still blocking this Yaptype copy. In Accessibility, select Yaptype, click −, add /Applications/Yaptype.app, then Quit & Reopen.")
-            return
+        if destination == .paste {
+            guard permissions.accessibilityGranted else {
+                showError("macOS is still blocking this Yaptype copy. In Accessibility, select Yaptype, click −, add /Applications/Yaptype.app, then Quit & Reopen.")
+                return
+            }
         }
         guard models.installedIDs.contains(settings.selectedModelID) else {
             showError("Download a Whisper model in Settings first.")
@@ -163,7 +210,11 @@ final class DictationPipeline: ObservableObject {
 
                 self.applyPhase(.inserting)
                 let insertStart = Date()
-                try await self.inserter.insert(polished.text)
+                if self.destination == .scratch {
+                    self.appendScratch(polished.text)
+                } else {
+                    try await self.inserter.insert(polished.text)
+                }
                 timing.insertMs = Date().timeIntervalSince(insertStart) * 1000
                 self.lastTiming = timing
 
@@ -246,6 +297,25 @@ final class DictationPipeline: ObservableObject {
 
     private func showError(_ message: String) {
         applyPhase(.error(message))
+        workTask?.cancel()
+        workTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(3))
+            guard let self, case .error = self.phase else { return }
+            self.resetToIdle()
+        }
+    }
+
+    private func appendScratch(_ text: String) {
+        let piece = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !piece.isEmpty else { return }
+        let existing = scratchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        if existing.isEmpty {
+            scratchText = piece
+        } else if scratchText.hasSuffix(" ") || scratchText.hasSuffix("\n") {
+            scratchText += piece
+        } else {
+            scratchText += " " + piece
+        }
     }
 
     private func applyPhase(_ newPhase: DictationPhase) {
@@ -254,25 +324,30 @@ final class DictationPipeline: ObservableObject {
         if newPhase != .preparing {
             stopPreparingClock()
         }
-        if newPhase == .idle {
-            hud.hide()
-        } else {
+        let showHUD = destination == .paste && newPhase != .idle
+        if showHUD {
             hud.show(phase: newPhase, level: newPhase == .recording ? audioLevel : 0)
+        } else {
+            hud.hide()
         }
     }
 
     private func startPreparingClock() {
         stopPreparingClock()
         preparingStartedAt = Date()
-        hud.show(phase: .preparing, level: 0, elapsedSeconds: 0)
+        if destination == .paste {
+            hud.show(phase: .preparing, level: 0, elapsedSeconds: 0)
+        }
         let timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
             Task { @MainActor in
                 guard let self, self.phase == .preparing, let started = self.preparingStartedAt else { return }
-                self.hud.show(
-                    phase: .preparing,
-                    level: 0,
-                    elapsedSeconds: Int(Date().timeIntervalSince(started))
-                )
+                if self.destination == .paste {
+                    self.hud.show(
+                        phase: .preparing,
+                        level: 0,
+                        elapsedSeconds: Int(Date().timeIntervalSince(started))
+                    )
+                }
             }
         }
         RunLoop.main.add(timer, forMode: .common)
@@ -296,7 +371,9 @@ final class DictationPipeline: ObservableObject {
             Task { @MainActor in
                 guard let self, self.phase == .recording else { return }
                 self.audioLevel = self.audio.level
-                self.hud.show(phase: .recording, level: self.audio.level)
+                if self.destination == .paste {
+                    self.hud.show(phase: .recording, level: self.audio.level)
+                }
             }
         }
         RunLoop.main.add(timer, forMode: .common)
@@ -316,6 +393,9 @@ final class DictationPipeline: ObservableObject {
             statusMessage = "Turn on Microphone for Yaptype in System Settings."
         } else if !permissions.accessibilityGranted {
             statusMessage = "Remove Yaptype from Accessibility, add /Applications/Yaptype.app, then Quit & Reopen."
+        } else if settings.language.needsMultilingualModel,
+                  WhisperModelSpec.preferredMultilingual(installed: models.installedIDs) == nil {
+            statusMessage = "Download a multilingual Whisper model in Settings."
         } else if !models.installedIDs.contains(settings.selectedModelID) {
             statusMessage = "Download a Whisper model in Settings."
         } else if transcription.isLoading {
